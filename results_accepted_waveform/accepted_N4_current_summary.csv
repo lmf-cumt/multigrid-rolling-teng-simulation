@@ -1,2 +1,0 @@
-source_csv,current_field,peak_positive_uA,peak_negative_uA,peak_to_peak_uA,duration_s
-results_multigrid_calibrated\teng_N4_1G_timeseries.csv,load_current_A,2.451666025587e+00,-2.281781047414e+00,4.733447073001e+00,6.556854249492e-01

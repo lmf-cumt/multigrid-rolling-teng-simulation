@@ -16,3 +16,26 @@ desktop.ini
 *.mph.recovery
 *.mphbin
 *.autosave
+
+# Local historical/intermediate simulation outputs kept off GitHub
+/comsol_models/
+/results/
+/results_accepted_waveform/
+/results_comsol_field/
+/results_current_waveforms_matlab/
+/results_multigrid_calibrated/*
+!/results_multigrid_calibrated/n4_full_cycle_current/
+!/results_multigrid_calibrated/n4_full_cycle_current/**
+/results_multigrid_calibrated_a4/
+/results_multigrid_calibrated_a4_smoothed/
+/results_p2_calibrated/
+/results_patent_reproduction/
+/results_patent_reproduction_check/
+
+# Local exploratory scripts kept off GitHub
+/scripts/*
+!/scripts/produce_n4_full_cycle_current.py
+
+# Superseded local writeups
+/仿真过程与结果总结.md
+/docs/多栅格滚球式TENG等效仿真复现步骤与方法.md

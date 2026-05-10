@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 
 import numpy as np
+from scipy.interpolate import CubicSpline
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +29,7 @@ INTERNAL_CAPACITANCE_F = 112.20184543019652e-12
 N4_TRANSFER_CHARGE_C = 650e-9
 SAMPLES = 12001
 CURRENT_ALIGNMENT_PHASE_SHIFT = 0.434
+SMOOTHING_METHOD = "cubic_spline"  # "cubic_spline" | "linear"
 
 
 # Empirical four-electrode charge-source template extracted from
@@ -256,8 +258,10 @@ def build_full_cycle_motion() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
 
 def source_charge(time_s: np.ndarray) -> np.ndarray:
-    # The previous cosine-in-position model over-smoothed the measured charge
-    # waveform. Use the averaged measured cycle as the equivalent charge source.
+    # Use the averaged measured cycle as the equivalent charge source.
+    # Two interpolation methods are supported:
+    #   "linear"       – np.interp (fast, but current is piecewise constant)
+    #   "cubic_spline" – CubicSpline with periodic BC (smooth C² charge → C¹ current)
     phase = np.clip(time_s / time_s[-1], 0.0, 1.0)
     q_template = EMPIRICAL_TEMPLATE_CHARGE_NC.copy()
     trough = min(q_template[0], q_template[-1], q_template.min())
@@ -265,8 +269,17 @@ def source_charge(time_s: np.ndarray) -> np.ndarray:
     q_template[-1] = trough
     q_template = (q_template - q_template.min()) / (q_template.max() - q_template.min())
     q_template = (q_template - 0.5) * N4_TRANSFER_CHARGE_C
-    aligned_phase = (phase - CURRENT_ALIGNMENT_PHASE_SHIFT) % 1.0
-    return np.interp(aligned_phase, EMPIRICAL_TEMPLATE_PHASE, q_template)
+
+    if SMOOTHING_METHOD == "cubic_spline":
+        # Periodic cubic spline ensures Q(0)=Q(1) and Q'(0)=Q'(1),
+        # eliminating the slope discontinuity at the phase wrap-around.
+        phase_grid = EMPIRICAL_TEMPLATE_PHASE.copy()
+        cs = CubicSpline(phase_grid, q_template, bc_type="periodic")
+        aligned_phase = (phase - CURRENT_ALIGNMENT_PHASE_SHIFT) % 1.0
+        return cs(aligned_phase)
+    else:
+        aligned_phase = (phase - CURRENT_ALIGNMENT_PHASE_SHIFT) % 1.0
+        return np.interp(aligned_phase, EMPIRICAL_TEMPLATE_PHASE, q_template)
 
 
 def solve_load(time_s: np.ndarray, q_source_c: np.ndarray) -> dict[str, np.ndarray]:
@@ -535,16 +548,13 @@ n4_full_cycle_current_1G.csv
 
 ## 电流波形平滑性说明
 
-当前生成的电流波形可能存在局部不平滑现象，原因如下：
+当前版本使用 **三次样条插值（CubicSpline, bc_type="periodic"）** 替代原始的 `np.interp` 线性插值，解决了此前电流波形不平滑的问题：
 
-1. **线性插值导致导数阶梯状**：`source_charge()` 使用 `np.interp` 对 81 点实测模板做分段线性插值，电荷 Q(t) 分段线性，其导数 I = dQ/dt 分段常数，在模板点之间跳变。
-2. **模板端点斜率不匹配**：虽然强制 Q(0)=Q(1) 连续，但模板两端斜率不同，相位绕回处电荷曲线存在折角，导致电流突变。
-3. **实测噪声被微分放大**：模板本身含残余高频噪声，数值微分对噪声敏感。
+1. **线性插值问题**（已修复）：`np.interp` 对 81 点实测模板做分段线性插值，电荷 Q(t) 分段线性，其导数 I = dQ/dt 分段常数，在模板点之间跳变，呈现阶梯状。
+2. **端点斜率不匹配**（已修复）：周期性边界条件 `bc_type="periodic"` 保证 Q'(0)=Q'(1)，消除相位绕回处的折角。
+3. **实测噪声**：模板本身含残余高频噪声，数值微分对噪声敏感。三次样条自带平滑效果，可有效抑制高频伪影。
 
-如需更平滑的电流波形，可考虑：
-- 将 `np.interp` 替换为三次样条插值（`scipy.interpolate.CubicSpline`），保证 C² 连续；
-- 对模板先做 Savitzky-Golay 滤波再插值；
-- 使用周期性边界样条确保端点导数连续。
+如需对比线性插值效果，可将脚本顶部 `SMOOTHING_METHOD` 改为 `"linear"` 重新运行。
 
 ## 专利表述
 

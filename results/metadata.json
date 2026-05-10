@@ -1,0 +1,25 @@
+{
+  "model": "2D quasi-static equivalent rolling-ball TENG postprocess",
+  "electrode_counts": [
+    2,
+    4,
+    6
+  ],
+  "electrode_width_m": 0.016,
+  "gap_m": 0.005,
+  "ball_radius_m": 0.002,
+  "ball_count": 4,
+  "surface_charge_density_C_per_m2": -0.0018183168191548383,
+  "surface_charge_density_uC_per_m2": -1818.3168191548384,
+  "speed_m_per_s": 0.1,
+  "load_resistance_ohm": 100000000.0,
+  "calibration": {
+    "calibration_electrode_count": 4,
+    "target_transfer_charge_C": 6.5e-07,
+    "transfer_charge_definition": "sum(abs(diff(Q))) over one constant-speed scan",
+    "uncalibrated_cumulative_transfer_charge_C": 1.7873672870224094e-08,
+    "charge_density_scale_factor": 36.366336383096765,
+    "calibrated_surface_charge_density_C_per_m2": -0.0018183168191548383
+  },
+  "note": "Q is an induced-charge proxy from Gaussian electrode coupling; I, V, P, E are derived from Q(t) and the resistive load. When calibration is enabled, all electrode counts use the same calibrated PTFE equivalent charge density."
+}

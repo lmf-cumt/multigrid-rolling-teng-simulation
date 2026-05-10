@@ -1,0 +1,8 @@
+{
+  "solver": "COMSOL Electrostatics stationary position sweep",
+  "charge_density": "-50e-6 C/m^2 fixed on PTFE ball boundaries",
+  "scale": "single global scale from N=2 measured transfer charge 380 nC",
+  "N4_measured_transfer_charge_C": 6.5e-07,
+  "load_resistance_ohm": 1000000000.0,
+  "positions_per_structure": 21
+}

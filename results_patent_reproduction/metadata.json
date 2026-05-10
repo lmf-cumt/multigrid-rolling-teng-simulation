@@ -1,0 +1,16 @@
+{
+  "rows": 16,
+  "cols": 9,
+  "pcb_thickness_m": 0.001,
+  "electrode_width_m": 0.016,
+  "electrode_gap_m": 0.005,
+  "stroke_m": 0.1,
+  "acceleration_m_s2": 4.0,
+  "dwell_start_s": 0.03,
+  "dwell_stop_s": 0.03,
+  "load_ohm": 1000000000.0,
+  "q_transfer_n2_C": 3.8e-07,
+  "q_transfer_n4_C": 6.5e-07,
+  "current_peak_n4_A": 6e-06,
+  "samples": 12000
+}

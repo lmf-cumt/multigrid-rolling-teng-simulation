@@ -1,0 +1,4 @@
+target_isc_pp_uA=1.133357946976e+01
+fitted_tau_s=2.421914577484e-02
+simulated_isc_pp_uA=1.133357917312e+01
+simulated_q_pp_nC=6.500000000000e+02

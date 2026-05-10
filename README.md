@@ -4,10 +4,14 @@
 
 ## 当前推荐使用的结果
 
-用于专利说明书的当前冻结版本为四电极完整周期电流图：
+用于专利说明书的当前冻结版本为四电极完整周期源电流图：
 
-- 图像：`results_multigrid_calibrated/n4_full_cycle_current/n4_full_cycle_current_1G.svg`
-- 数据：`results_multigrid_calibrated/n4_full_cycle_current/n4_full_cycle_current_1G.csv`
+- 源电流图像：`results_multigrid_calibrated/n4_full_cycle_current/n4_full_cycle_source_current.svg`
+- 源电流数据：`results_multigrid_calibrated/n4_full_cycle_current/n4_full_cycle_source_current.csv`
+- 转移电荷曲线：`results_multigrid_calibrated/n4_full_cycle_current/n4_full_cycle_transfer_charge.svg`
+- 转移电荷数据：`results_multigrid_calibrated/n4_full_cycle_current/n4_full_cycle_transfer_charge.csv`
+- 1 GΩ 派生负载响应：`results_multigrid_calibrated/n4_full_cycle_current/n4_full_cycle_current_1G.svg`
+- 负载响应数据：`results_multigrid_calibrated/n4_full_cycle_current/n4_full_cycle_current_1G.csv`
 - 说明：`results_multigrid_calibrated/n4_full_cycle_current/四电极完整周期电流图生成说明.md`
 - 复现脚本：`scripts/produce_n4_full_cycle_current.py`
 
@@ -15,15 +19,16 @@
 
 ```text
 四电极结构：A-B-A-B
-有效相邻交替边界数：3
-PTFE 球电荷密度：固定
+电荷源模型：实测周期模板校准
+电流图口径：源电流/电荷计电流，source current = dQ/dt
+PTFE 球电荷密度：固定，波形形状由实测电荷曲线校准
 四电极实测转移电荷：650 nC
 运动距离：100 mm
-加速度/减速度：5 m/s²
-起点停留：30 ms
-终点停留：30 ms
-负载电阻：1 GΩ
-等效内电容：112.2 pF
+加速度/减速度：4 m/s²
+完整周期：0.832456 s
+终点停留：100 ms
+起点停留：100 ms
+派生负载响应：R = 1 GΩ，Ceq = 112.2 pF
 ```
 
 ## 核心物理口径

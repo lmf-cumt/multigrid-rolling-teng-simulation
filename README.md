@@ -63,6 +63,18 @@ python .\scripts\produce_n4_full_cycle_current.py
 results_multigrid_calibrated/n4_full_cycle_current/
 ```
 
+运行模型对比：
+
+```powershell
+python .\scripts\compare_models.py
+```
+
+对比输出将写入：
+
+```text
+results_multigrid_calibrated/model_comparison/
+```
+
 ## COMSOL 模型
 
 `comsol_models/` 中保存了双电极、四电极、六电极的 2D 几何/静电模型入口，可用于进一步静电场分析。当前电流波形不是 COMSOL 直接瞬态电路求解结果，而是结合实验转移电荷校准后的等效电荷转移/负载响应模型。
@@ -73,9 +85,44 @@ results_multigrid_calibrated/n4_full_cycle_current/
 scripts/                      仿真、绘图、COMSOL 建模脚本
 comsol_models/                COMSOL 几何与静电模型
 results_multigrid_calibrated/ 多栅格校准仿真结果
+  n4_full_cycle_current/      四电极完整周期电流（冻结版本）
+  model_comparison/           解析模型 vs 实测模板对比
 results_p2_calibrated/        双电极阵列负载扫描校准结果
 docs/                         复现说明与方法文档
 ```
+
+## 模型对比：解析余弦 vs 实测模板
+
+本仓库包含两种电荷源模型的对比分析，运行 `scripts/compare_models.py` 可生成：
+
+| 对比图 | 路径 |
+|--------|------|
+| 电荷波形对比 | `results_multigrid_calibrated/model_comparison/comparison_charge.svg` |
+| 源电流对比 | `results_multigrid_calibrated/model_comparison/comparison_source_current.svg` |
+| 负载电流对比 | `results_multigrid_calibrated/model_comparison/comparison_load_current.svg` |
+| 对比数据 | `results_multigrid_calibrated/model_comparison/comparison_data.csv` |
+
+### 两种模型
+
+| 项目 | 解析余弦模型 (Analytical) | 实测模板模型 (Empirical, 推荐) |
+|------|--------------------------|-------------------------------|
+| 电荷源 | $Q(x) = \frac{1}{2}Q_{pp}\left[-\cos\left(\frac{N\pi x}{L}\right)\right]$ | 120 周期实测电荷平均 → 三次样条 |
+| 事件数 N | 3（固定，对应 A-B-A-B 的 3 条边界） | 由实验波形自然包含 |
+| 物理依据 | 纯几何推导 | 实验数据驱动 |
+| 相位驱动 | 位置驱动 Q(x) | 位置驱动 Q(x) |
+| 停留段电流 | 0（源电流正确归零） | 0（源电流正确归零） |
+| 波形特征 | 规则正弦波，对称性极好 | 包含实测非对称性和多脉冲细节 |
+
+### 关键对比数据 (a=4 m/s², dwell=100ms, R=1GΩ)
+
+| 指标 | 解析余弦 | 实测模板 |
+|------|:-------:|:-------:|
+| 源电流峰值 | **19.36 μA** | **8.82 μA** |
+| 负载电流峰值 | **4.22 μA** | **2.65 μA** |
+| 负载电流 RMS | 1.96 μA | 1.57 μA |
+| 转移电荷峰峰值 | 650.0 nC | 650.0 nC |
+
+> **解读**：解析余弦模型假设电荷在空间上呈理想余弦分布，3 个事件（A-B 边界）产生 3 个完整的正弦电流脉冲，峰值高达 ~19 μA。实测模板模型基于真实实验数据，电荷变化更平缓，脉冲更宽、峰值更低（~8.8 μA），但包含了真实电极结构带来的非对称性和多脉冲特征，更贴近物理实际。**专利插图和定量分析推荐使用实测模板模型。**
 
 ## 注意
 

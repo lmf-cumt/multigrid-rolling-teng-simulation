@@ -26,6 +26,8 @@ desktop.ini
 /results_multigrid_calibrated/*
 !/results_multigrid_calibrated/n4_full_cycle_current/
 !/results_multigrid_calibrated/n4_full_cycle_current/**
+!/results_multigrid_calibrated/model_comparison/
+!/results_multigrid_calibrated/model_comparison/**
 /results_multigrid_calibrated_a4/
 /results_multigrid_calibrated_a4_smoothed/
 /results_p2_calibrated/
@@ -35,6 +37,7 @@ desktop.ini
 # Local exploratory scripts kept off GitHub
 /scripts/*
 !/scripts/produce_n4_full_cycle_current.py
+!/scripts/compare_models.py
 
 # Superseded local writeups
 /仿真过程与结果总结.md

@@ -30,6 +30,12 @@ N4_TRANSFER_CHARGE_C = 650e-9
 SAMPLES = 12001
 CURRENT_ALIGNMENT_PHASE_SHIFT = 0.434
 SMOOTHING_METHOD = "cubic_spline"  # "cubic_spline" | "linear"
+# -- 位置驱动模式：Q = Q(x) 而非 Q = Q(t/T) --
+# True:  电荷由球的瞬时位置决定，停留期间 dQ/dt = 0，电流归零
+# False: 原时间驱动模式，电荷由归一化时间 t/T 决定（用于对比）
+MOTION_DRIVEN = True
+# 位置驱动模式下的相位偏移（通常不需要，设为 0；如需微调对齐实测电流可修改）
+POSITION_PHASE_SHIFT = 0.0
 
 
 # Empirical four-electrode charge-source template extracted from
@@ -257,12 +263,52 @@ def build_full_cycle_motion() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return t, x, v
 
 
-def source_charge(time_s: np.ndarray) -> np.ndarray:
+def compute_position_phase(t: np.ndarray, x: np.ndarray, v: np.ndarray) -> np.ndarray:
+    """由球的瞬时位置 x(t) 和运动方向计算电荷模板相位 φ ∈ [0, 1]。
+
+    物理依据：
+    - 实测电荷模板的一个完整周期对应 球从起点→终点→起点 的往复运动。
+    - 前半周期 (φ ∈ [0, 0.5])：正向运动，x: 0 → STROKE_M
+    - 后半周期 (φ ∈ [0.5, 1.0])：反向运动，x: STROKE_M → 0
+    - 停留期间位置不变 → φ 不变 → dQ/dt = 0 → 电流为零
+
+    通过速度符号判断运动方向，停留期间继承上一段的方向。
+    """
+    phase = np.zeros_like(t)
+    # 确定每个时刻的运动方向: +1 正向, -1 反向
+    direction = np.ones_like(t)  # 初始默认为正向
+    for i in range(1, len(t)):
+        if v[i] > 1e-12:
+            direction[i] = 1   # 正向运动
+        elif v[i] < -1e-12:
+            direction[i] = -1  # 反向运动
+        else:
+            direction[i] = direction[i - 1]  # 停留，继承上一段方向
+
+    # 位置 → 相位映射
+    forward = direction > 0
+    phase[forward] = x[forward] / (2.0 * STROKE_M)          # φ ∈ [0, 0.5]
+    phase[~forward] = 1.0 - x[~forward] / (2.0 * STROKE_M)  # φ ∈ [0.5, 1.0]
+    return phase
+
+
+def source_charge(time_s: np.ndarray, position_m: np.ndarray | None = None, velocity_m_per_s: np.ndarray | None = None) -> np.ndarray:
     # Use the averaged measured cycle as the equivalent charge source.
     # Two interpolation methods are supported:
     #   "linear"       – np.interp (fast, but current is piecewise constant)
     #   "cubic_spline" – CubicSpline with periodic BC (smooth C² charge → C¹ current)
-    phase = np.clip(time_s / time_s[-1], 0.0, 1.0)
+    #
+    # Two phase-driving modes are supported:
+    #   MOTION_DRIVEN=True  – phase derived from instantaneous position x(t);
+    #                         current naturally goes to zero during dwell.
+    #   MOTION_DRIVEN=False – phase = t/T (uniform), for comparison only.
+    if MOTION_DRIVEN and position_m is not None and velocity_m_per_s is not None:
+        phase = compute_position_phase(time_s, position_m, velocity_m_per_s)
+        phase_shift = POSITION_PHASE_SHIFT
+    else:
+        phase = np.clip(time_s / time_s[-1], 0.0, 1.0)
+        phase_shift = CURRENT_ALIGNMENT_PHASE_SHIFT
+
     q_template = EMPIRICAL_TEMPLATE_CHARGE_NC.copy()
     trough = min(q_template[0], q_template[-1], q_template.min())
     q_template[0] = trough
@@ -275,10 +321,10 @@ def source_charge(time_s: np.ndarray) -> np.ndarray:
         # eliminating the slope discontinuity at the phase wrap-around.
         phase_grid = EMPIRICAL_TEMPLATE_PHASE.copy()
         cs = CubicSpline(phase_grid, q_template, bc_type="periodic")
-        aligned_phase = (phase - CURRENT_ALIGNMENT_PHASE_SHIFT) % 1.0
+        aligned_phase = (phase - phase_shift) % 1.0
         return cs(aligned_phase)
     else:
-        aligned_phase = (phase - CURRENT_ALIGNMENT_PHASE_SHIFT) % 1.0
+        aligned_phase = (phase - phase_shift) % 1.0
         return np.interp(aligned_phase, EMPIRICAL_TEMPLATE_PHASE, q_template)
 
 
@@ -486,6 +532,7 @@ def write_transfer_charge_svg(path: Path, time_s: np.ndarray, transfer_charge_nC
 
 
 def write_doc(path: Path, time_s: np.ndarray, source_current_uA: np.ndarray, load_current_uA: np.ndarray) -> None:
+    code = "```"  # markdown code fence
     text = f"""# 四电极完整周期电流图生成说明
 
 ## 为什么重新整理
@@ -494,9 +541,9 @@ def write_doc(path: Path, time_s: np.ndarray, source_current_uA: np.ndarray, loa
 
 ## 冻结参数
 
-```text
+{code}text
 四电极结构：A-B-A-B
-电荷源模型：实测周期模板校准
+电荷源模型：实测周期模板校准 + 位置驱动 (Q = Q(x))
 电流图口径：源电流/电荷计电流，source current = dQ/dt
 PTFE 电荷密度：固定，波形形状由实测电荷曲线校准
 四电极实测转移电荷：650 nC
@@ -505,42 +552,43 @@ PTFE 电荷密度：固定，波形形状由实测电荷曲线校准
 终点停留：{DWELL_STOP_S * 1e3:.0f} ms
 起点停留：{DWELL_START_S * 1e3:.0f} ms
 派生负载响应：R = 1 GΩ，Ceq = 112.2 pF
-```
+相位驱动模式：{"位置驱动 MOTION_DRIVEN" if MOTION_DRIVEN else "时间驱动 (t/T)"}
+{code}
 
 ## 完整周期
 
 完整周期为：
 
-```text
+{code}text
 正向加速/减速到 100 mm -> 终点停留 -> 反向加速/减速回到 0 mm -> 起点停留
-```
+{code}
 
 周期总时长：
 
-```text
+{code}text
 T = {time_s[-1]:.6f} s
-```
+{code}
 
 ## 图中结果
 
-```text
+{code}text
 源电流峰值：{max(abs(source_current_uA)):.3f} μA
 源电流最大正值：{source_current_uA.max():.3f} μA
 源电流最大负值：{source_current_uA.min():.3f} μA
 1 GΩ 负载响应峰值：{max(abs(load_current_uA)):.3f} μA
 转移电荷峰峰值：650.000 nC
-```
+{code}
 
 同时输出转移电荷曲线和 1 GΩ 派生负载响应：
 
-```text
+{code}text
 n4_full_cycle_source_current.svg
 n4_full_cycle_source_current.csv
 n4_full_cycle_transfer_charge.svg
 n4_full_cycle_transfer_charge.csv
 n4_full_cycle_current_1G.svg
 n4_full_cycle_current_1G.csv
-```
+{code}
 
 ## 实测对齐说明
 
@@ -556,6 +604,24 @@ n4_full_cycle_current_1G.csv
 
 如需对比线性插值效果，可将脚本顶部 `SMOOTHING_METHOD` 改为 `"linear"` 重新运行。
 
+## 位置驱动模式 (MOTION_DRIVEN)
+
+当前默认使用 **位置驱动模式**，电荷 Q 由球的瞬时位置 x(t) 决定（Q = Q(x)），而非归一化时间 t/T：
+
+- **正向运动**（x: 0 → 100 mm）：φ = x / (2·STROKE_M)，对应模板前半周期 φ ∈ [0, 0.5]
+- **终点停留**（x = 100 mm, v = 0）：φ = 0.5（恒定），dQ/dt = 0，电流归零
+- **反向运动**（x: 100 → 0 mm）：φ = 1 − x / (2·STROKE_M)，对应模板后半周期 φ ∈ [0.5, 1.0]
+- **起点停留**（x = 0, v = 0）：φ = 1.0（恒定），dQ/dt = 0，电流归零
+
+运动方向通过速度符号 v(t) 判断，停留期间继承上一段方向。
+
+与旧时间驱动模式（φ = t/T）的关键区别：
+- 停留期间电流自然为零（物理正确）
+- 电流幅值与瞬时速度耦合：I = (dQ/dφ) · (dφ/dx) · v ∝ v
+- 加减速段电流幅值变化更真实
+
+如需切回时间驱动模式，将 `MOTION_DRIVEN` 设为 `False` 重新运行。
+
 ## 专利表述
 
 在相同 PTFE 球电荷密度和相同机械激励条件下，四电极交替电极结构通过增加 A/B 电极组之间的交替边界，使滚球在完整往复周期内产生多次感应电荷重分布，形成多个交流电流脉冲。输出增强来自电极结构对电荷转移过程的调控，而非 PTFE 球表面带电量增加。
@@ -566,7 +632,7 @@ n4_full_cycle_current_1G.csv
 def main() -> None:
     PACKAGE_DIR.mkdir(parents=True, exist_ok=True)
     t, x, v = build_full_cycle_motion()
-    q = source_charge(t)
+    q = source_charge(t, position_m=x, velocity_m_per_s=v)
     response = solve_load(t, q)
     source_current_uA = response["source_current_A"] * 1e6
     load_current_uA = response["load_current_A"] * 1e6
